@@ -1,0 +1,12 @@
+{
+  "name": "qissati-ana-backend",
+  "version": "1.0.0",
+  "description": "Backend API for قصتي أنا - Personalized Children's Story Generator",
+  "private": true,
+  "dependencies": {
+    "openai": "^4.67.0"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}
