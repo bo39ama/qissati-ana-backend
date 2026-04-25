@@ -1,54 +1,143 @@
 // api/image.js — قصتي أنا
-// Generates high-quality comic panel images using gpt-image-1
+// Generates comic panel images using child photo as visual reference
 
 import OpenAI from "openai";
-const openai = new OpenAI({ apiKey: process.env.OPENAI_API_KEY });
+
+const openai = new OpenAI({
+  apiKey: process.env.OPENAI_API_KEY,
+});
 
 export default async function handler(req, res) {
-  if (req.method === "OPTIONS") { res.status(200).end(); return; }
-  if (req.method !== "POST") return res.status(405).json({ error: "Method not allowed" });
+  if (req.method === "OPTIONS") {
+    res.status(200).end();
+    return;
+  }
+
+  if (req.method !== "POST") {
+    return res.status(405).json({ error: "Method not allowed" });
+  }
 
   try {
-    const { panelDescription, childInfo, panelNumber, panelType } = req.body;
-    const { name, age, hobby, goal } = childInfo || {};
+    const {
+      panelDescription,
+      childInfo,
+      panelNumber,
+      panelType,
+    } = req.body;
+
+    const {
+      name,
+      age,
+      hobby,
+      goal,
+      photo,
+    } = childInfo || {};
+
     const ageNum = parseInt(age) || 6;
 
-    let artStyle = ageNum <= 8
-      ? "bright playful cartoon, chibi-style, big friendly eyes, soft pastel colors, sparkles and stars, children's book illustration"
-      : ageNum <= 13
-      ? "clean cartoon style, anime-inspired, vibrant colors, school and daily life setting"
-      : "semi-realistic illustration, soft cinematic lighting, calm warm tones, aspirational mood";
-
-    const base = `comic panel, professional illustration, ${artStyle}, child named ${name} age ${age}${hobby?`, loves ${hobby}`:""}${goal?`, dreams of ${goal}`:""}. No text, no speech bubbles, clean lines, high quality`;
+    const artStyle =
+      ageNum <= 8
+        ? "bright playful children's book cartoon, cute friendly character, big expressive eyes, soft pastel colors, warm joyful mood"
+        : ageNum <= 13
+        ? "clean modern cartoon, consistent character design, school-age child, vibrant but soft colors"
+        : "semi-realistic youth illustration, soft cinematic lighting, calm inspiring colors";
 
     const scenes = {
-      1:`${name} at home looking happy and excited, cheerful everyday setting, stars around`,
-      2:`${name} looking worried facing a challenge, slightly dramatic but not scary, thought bubble`,
-      3:`Kind adult talking to ${name}, both smiling warmly, heart symbols between them`,
-      4:`${name} dreaming with eyes closed, magical thought bubble showing ${goal||"big dream"}, stars and clouds`,
-      5:`${name} actively practicing ${hobby||"working hard"}, determined pose, action lines, energetic`,
-      6:`${name} improving and showing skills, proud happy expression, trophy nearby`,
-      7:`${name} celebrating victory achieving ${goal||"the goal"}, confetti stars everywhere, arms raised`,
-      8:`${name} smiling warmly forward, hand on heart, glowing golden background, stars and hearts`
+      1: `${name} happy at home or in a cozy room, excited about ${hobby || "a favorite activity"}`,
+      2: `${name} facing a gentle challenge, thoughtful and slightly worried but hopeful`,
+      3: `${name} receiving kind advice from a friendly adult or mentor, warm emotional moment`,
+      4: `${name} imagining the dream of becoming ${goal || "successful"}, magical dream atmosphere`,
+      5: `${name} practicing ${hobby || "skills"} with determination and energy`,
+      6: `${name} improving step by step, proud and focused, progress feeling`,
+      7: `${name} celebrating success and achieving the goal of ${goal || "success"}, joyful celebration`,
+      8: `${name} smiling confidently, inspiring final message feeling, glowing background`,
     };
 
-    const scene = panelType==="cover"
-      ? `Children's comic cover: ${name} standing heroically center, hero cape, magical colorful background, stars sparkles hearts, portrait orientation. ${base}`
-      : `${scenes[panelNumber]||panelDescription||`${name} adventure scene`}. ${base}`;
+    const scene =
+      panelType === "cover"
+        ? `${name} standing heroically like the star of a children's comic cover, joyful confident pose, magical pastel background`
+        : scenes[panelNumber] || panelDescription || `${name} in a joyful comic story scene`;
 
-    const response = await openai.images.generate({
-      model: "gpt-image-1",
-      prompt: scene.replace(/\s+/g," ").trim(),
-      n: 1, size: "1024x1024", quality: "medium"
-    });
+    const prompt = `
+Use the uploaded child photo only as a visual reference for the main character.
+Create ONE clean comic panel illustration.
+
+Important rules:
+- Keep the same main child character inspired by the uploaded photo.
+- Do not copy the photo directly; transform into a polished cartoon character.
+- No text inside the image.
+- No Arabic text.
+- No English text.
+- No speech bubbles.
+- No captions.
+- No watermarks.
+- No logos.
+- Full body or half body visible, not cropped.
+- Clean background.
+- Leave safe space around the character.
+- Professional premium comic story style.
+
+Character:
+- Child name: ${name}
+- Age: ${age}
+- Hobby: ${hobby || "not specified"}
+- Goal: ${goal || "not specified"}
+
+Scene:
+${scene}
+
+Style:
+${artStyle}
+High quality, consistent character, child-friendly, warm, premium, clear composition.
+`.replace(/\s+/g, " ").trim();
+
+    let response;
+
+    if (photo && photo.startsWith("data:image")) {
+      response = await openai.images.edit({
+        model: "gpt-image-1",
+        image: [{ image_url: photo }],
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "medium",
+      });
+    } else {
+      response = await openai.images.generate({
+        model: "gpt-image-1",
+        prompt,
+        n: 1,
+        size: "1024x1024",
+        quality: "medium",
+      });
+    }
 
     const d = response.data[0];
-    if (d.b64_json) return res.status(200).json({ success:true, image:`data:image/png;base64,${d.b64_json}`, type:"base64" });
-    if (d.url)     return res.status(200).json({ success:true, image:d.url, type:"url" });
-    throw new Error("No image data");
 
-  } catch(e) {
+    if (d.b64_json) {
+      return res.status(200).json({
+        success: true,
+        image: `data:image/png;base64,${d.b64_json}`,
+        type: "base64",
+      });
+    }
+
+    if (d.url) {
+      return res.status(200).json({
+        success: true,
+        image: d.url,
+        type: "url",
+      });
+    }
+
+    throw new Error("No image data returned");
+  } catch (e) {
     console.error("Image error:", e);
-    return res.status(200).json({ success:false, image:null, error:e.message, fallback:true });
+    return res.status(200).json({
+      success: false,
+      image: null,
+      error: e.message,
+      fallback: true,
+    });
   }
 }
