@@ -1,5 +1,5 @@
 // api/image.js — قصتي أنا
-// Generates comic panel images using child photo as visual reference
+// Generates high-quality comic panel images using gpt-image-1
 
 import OpenAI from "openai";
 
@@ -30,27 +30,34 @@ export default async function handler(req, res) {
       age,
       hobby,
       goal,
-      photo,
     } = childInfo || {};
 
     const ageNum = parseInt(age) || 6;
 
     const artStyle =
       ageNum <= 8
-        ? "bright playful children's book cartoon, cute friendly character, big expressive eyes, soft pastel colors, warm joyful mood"
+        ? "bright playful cartoon, cute child character, big friendly eyes, soft pastel colors, sparkles, stars, children's storybook illustration"
         : ageNum <= 13
-        ? "clean modern cartoon, consistent character design, school-age child, vibrant but soft colors"
-        : "semi-realistic youth illustration, soft cinematic lighting, calm inspiring colors";
+        ? "clean modern cartoon style, school-age child, consistent face, soft vibrant colors, children's comic illustration"
+        : "semi-realistic cartoon style, soft cinematic lighting, calm inspiring colors, youth character illustration";
+
+    const characterProfile = `
+Main character:
+A ${ageNum}-year-old child named ${name}.
+Keep the same character design in every panel:
+same hairstyle, same face shape, same skin tone, same outfit style, same age, same friendly expression style.
+The character should look like one consistent child across the whole comic.
+`;
 
     const scenes = {
-      1: `${name} happy at home or in a cozy room, excited about ${hobby || "a favorite activity"}`,
-      2: `${name} facing a gentle challenge, thoughtful and slightly worried but hopeful`,
-      3: `${name} receiving kind advice from a friendly adult or mentor, warm emotional moment`,
-      4: `${name} imagining the dream of becoming ${goal || "successful"}, magical dream atmosphere`,
-      5: `${name} practicing ${hobby || "skills"} with determination and energy`,
-      6: `${name} improving step by step, proud and focused, progress feeling`,
-      7: `${name} celebrating success and achieving the goal of ${goal || "success"}, joyful celebration`,
-      8: `${name} smiling confidently, inspiring final message feeling, glowing background`,
+      1: `${name} is happy at home or in a cozy room, excited about ${hobby || "a favorite activity"}, warm joyful mood`,
+      2: `${name} faces a gentle challenge, thoughtful and slightly worried but still hopeful`,
+      3: `${name} receives kind advice from a friendly adult mentor, emotional warm moment`,
+      4: `${name} imagines becoming ${goal || "successful"}, magical dream atmosphere, stars and soft clouds`,
+      5: `${name} practices ${hobby || "skills"} with determination and energy, action scene`,
+      6: `${name} improves step by step, proud and focused, progress feeling`,
+      7: `${name} celebrates success and achieving the goal of ${goal || "success"}, confetti and joyful celebration`,
+      8: `${name} smiles confidently, hand on heart, inspiring final scene, glowing background`,
     };
 
     const scene =
@@ -59,58 +66,41 @@ export default async function handler(req, res) {
         : scenes[panelNumber] || panelDescription || `${name} in a joyful comic story scene`;
 
     const prompt = `
-Use the uploaded child photo only as a visual reference for the main character.
-Create ONE clean comic panel illustration.
+Create ONE clean children's comic panel illustration.
 
-Important rules:
-- Keep the same main child character inspired by the uploaded photo.
-- Do not copy the photo directly; transform into a polished cartoon character.
-- No text inside the image.
-- No Arabic text.
-- No English text.
-- No speech bubbles.
-- No captions.
-- No watermarks.
-- No logos.
-- Full body or half body visible, not cropped.
-- Clean background.
-- Leave safe space around the character.
-- Professional premium comic story style.
-
-Character:
-- Child name: ${name}
-- Age: ${age}
-- Hobby: ${hobby || "not specified"}
-- Goal: ${goal || "not specified"}
+${characterProfile}
 
 Scene:
 ${scene}
 
+STRICT RULES:
+- No text inside the image.
+- No Arabic words.
+- No English words.
+- No speech bubbles.
+- No captions.
+- No logos.
+- No watermark.
+- Do not crop the face.
+- Show the child clearly.
+- Leave safe space around the character.
+- Clean background.
+- Professional premium children's comic style.
+- The image must look like part of a branded personalized comic story.
+
 Style:
 ${artStyle}
-High quality, consistent character, child-friendly, warm, premium, clear composition.
+
+High quality, polished, colorful, warm, child-friendly, consistent character, clear composition.
 `.replace(/\s+/g, " ").trim();
 
-    let response;
-
-    if (photo && photo.startsWith("data:image")) {
-      response = await openai.images.edit({
-        model: "gpt-image-1",
-        image: [{ image_url: photo }],
-        prompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "medium",
-      });
-    } else {
-      response = await openai.images.generate({
-        model: "gpt-image-1",
-        prompt,
-        n: 1,
-        size: "1024x1024",
-        quality: "medium",
-      });
-    }
+    const response = await openai.images.generate({
+      model: "gpt-image-1",
+      prompt,
+      n: 1,
+      size: "1024x1024",
+      quality: "medium",
+    });
 
     const d = response.data[0];
 
